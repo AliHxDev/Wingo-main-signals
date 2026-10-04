@@ -1,0 +1,8 @@
+{
+  "name": "Wingo Signals Bot oracle",
+  "description": "Production-ready WinGo 1M deterministic prediction engine and automated WhatsApp Newsletter signal bot with management dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

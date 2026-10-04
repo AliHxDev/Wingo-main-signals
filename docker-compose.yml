@@ -1,0 +1,37 @@
+services:
+  app:
+    build: .
+    container_name: wingo-whatsapp-bot
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://wingo_user:wingo_secure_pass@db:5432/wingo_bot
+      - DATABASE_SSL=false
+      - JWT_SECRET=random_super_secret_jwt_32_characters_long
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=admin123456
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    container_name: wingo-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: wingo_user
+      POSTGRES_PASSWORD: wingo_secure_pass
+      POSTGRES_DB: wingo_bot
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wingo_user -d wingo_bot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

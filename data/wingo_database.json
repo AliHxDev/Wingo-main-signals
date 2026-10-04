@@ -1,0 +1,319 @@
+{
+  "users": [
+    {
+      "username": "admin",
+      "password_hash": "$2b$10$qvSjKgLDm8YU04WxPaZMJOmY6fEtQaRrB8tjYvkUnG9x5HZa1jEqK",
+      "id": 1,
+      "created_at": "2026-10-04T01:27:02.392Z",
+      "updated_at": "2026-10-04T01:27:02.392Z"
+    }
+  ],
+  "settings": [
+    {
+      "key": "reminder_minutes_before",
+      "value": "30",
+      "updated_at": "2026-10-04T01:27:02.398Z"
+    },
+    {
+      "key": "reminder_website_url",
+      "value": "https://example.com",
+      "updated_at": "2026-10-04T01:27:02.398Z"
+    },
+    {
+      "key": "newsletter_jid",
+      "value": "120363429657595980@newsletter",
+      "updated_at": "2026-10-04T01:27:02.398Z"
+    },
+    {
+      "key": "confidence_threshold",
+      "value": "65",
+      "updated_at": "2026-10-04T01:27:02.398Z"
+    },
+    {
+      "key": "polling_interval",
+      "value": "60",
+      "updated_at": "2026-10-04T01:27:02.398Z"
+    },
+    {
+      "key": "wingo_api_url",
+      "value": "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json",
+      "updated_at": "2026-10-04T01:27:02.398Z"
+    },
+    {
+      "key": "wingo_source_mode",
+      "value": "auto",
+      "updated_at": "2026-10-04T01:27:02.398Z"
+    },
+    {
+      "key": "bot_timezone",
+      "value": "Asia/Karachi",
+      "updated_at": "2026-10-04T01:27:02.398Z"
+    },
+    {
+      "key": "bot_mode",
+      "value": "STOPPED",
+      "updated_at": "2026-10-04T01:27:02.398Z"
+    },
+    {
+      "key": "session_scheduler_enabled",
+      "value": "false",
+      "updated_at": "2026-10-04T01:27:02.398Z"
+    },
+    {
+      "key": "signal_delay_min",
+      "value": "15",
+      "updated_at": "2026-10-04T01:27:02.398Z"
+    },
+    {
+      "key": "active_session_id",
+      "value": "",
+      "updated_at": "2026-10-04T01:27:02.398Z"
+    },
+    {
+      "key": "signal_delay_max",
+      "value": "15",
+      "updated_at": "2026-10-04T01:27:02.398Z"
+    },
+    {
+      "key": "schedule_enabled",
+      "value": "false",
+      "updated_at": "2026-10-04T01:27:02.398Z"
+    },
+    {
+      "key": "missed_session_policy",
+      "value": "START_IF_WITHIN_WINDOW",
+      "updated_at": "2026-10-04T01:27:02.398Z"
+    },
+    {
+      "key": "missed_session_grace_minutes",
+      "value": "120",
+      "updated_at": "2026-10-04T01:27:02.398Z"
+    },
+    {
+      "key": "reminder_enabled",
+      "value": "true",
+      "updated_at": "2026-10-04T01:27:02.398Z"
+    }
+  ],
+  "whatsapp_connection": [
+    {
+      "id": "primary",
+      "status": "not_paired",
+      "phone_number": null,
+      "pairing_code": null,
+      "pairing_expires_at": null,
+      "last_error": null,
+      "connected_at": null,
+      "updated_at": "2026-10-04T01:27:02.425Z"
+    }
+  ],
+  "session_configs": [
+    {
+      "session_name": "Afternoon",
+      "start_time": "14:00",
+      "enabled": true,
+      "target_wins": 10,
+      "min_confidence": 65,
+      "signal_delay_min": 15,
+      "signal_delay_max": 15,
+      "id": 2,
+      "end_time": null,
+      "created_at": "2026-10-04T01:27:02.430Z",
+      "updated_at": "2026-10-04T01:27:02.430Z"
+    },
+    {
+      "session_name": "Morning",
+      "start_time": "06:00",
+      "enabled": true,
+      "target_wins": 10,
+      "min_confidence": 65,
+      "signal_delay_min": 15,
+      "signal_delay_max": 15,
+      "id": 1,
+      "end_time": null,
+      "created_at": "2026-10-04T01:27:02.430Z",
+      "updated_at": "2026-10-04T01:27:02.430Z"
+    },
+    {
+      "session_name": "Night",
+      "start_time": "20:00",
+      "enabled": true,
+      "target_wins": 10,
+      "min_confidence": 65,
+      "signal_delay_min": 15,
+      "signal_delay_max": 15,
+      "id": 3,
+      "end_time": null,
+      "created_at": "2026-10-04T01:27:02.430Z",
+      "updated_at": "2026-10-04T01:27:02.430Z"
+    }
+  ],
+  "bot_sessions": [],
+  "signals": [],
+  "wingo_results": [
+    {
+      "issue_number": "20261002100010688",
+      "number": 4,
+      "size": "SMALL",
+      "colors": "RED",
+      "premium": "4",
+      "created_at": "2026-10-02T11:28:53.979Z"
+    },
+    {
+      "issue_number": "20261002100010687",
+      "number": 1,
+      "size": "SMALL",
+      "colors": "GREEN",
+      "premium": "1",
+      "created_at": "2026-10-02T11:28:53.986Z"
+    },
+    {
+      "issue_number": "20261002100010686",
+      "number": 9,
+      "size": "BIG",
+      "colors": "GREEN",
+      "premium": "9",
+      "created_at": "2026-10-02T11:28:53.993Z"
+    },
+    {
+      "issue_number": "20261002100010685",
+      "number": 6,
+      "size": "BIG",
+      "colors": "RED",
+      "premium": "6",
+      "created_at": "2026-10-02T11:28:54.009Z"
+    },
+    {
+      "issue_number": "20261002100010684",
+      "number": 7,
+      "size": "BIG",
+      "colors": "GREEN",
+      "premium": "7",
+      "created_at": "2026-10-02T11:28:54.019Z"
+    },
+    {
+      "issue_number": "20261002100010683",
+      "number": 0,
+      "size": "SMALL",
+      "colors": "RED,VIOLET",
+      "premium": "0",
+      "created_at": "2026-10-02T11:28:54.025Z"
+    },
+    {
+      "issue_number": "20261002100010682",
+      "number": 6,
+      "size": "BIG",
+      "colors": "RED",
+      "premium": "6",
+      "created_at": "2026-10-02T11:28:54.101Z"
+    },
+    {
+      "issue_number": "20261002100010681",
+      "number": 1,
+      "size": "SMALL",
+      "colors": "GREEN",
+      "premium": "1",
+      "created_at": "2026-10-02T11:28:54.105Z"
+    },
+    {
+      "issue_number": "20261002100010680",
+      "number": 1,
+      "size": "SMALL",
+      "colors": "GREEN",
+      "premium": "1",
+      "created_at": "2026-10-02T11:28:54.108Z"
+    },
+    {
+      "issue_number": "20261002100010679",
+      "number": 3,
+      "size": "SMALL",
+      "colors": "GREEN",
+      "premium": "3",
+      "created_at": "2026-10-02T11:28:54.114Z"
+    }
+  ],
+  "delivery_logs": [],
+  "session_reminders": [
+    {
+      "session_config_id": 1,
+      "session_name": "Morning",
+      "schedule_date": "2026-10-02",
+      "session_time": "06:00",
+      "reminder_time": "05:30",
+      "status": "MISSED",
+      "destination": "120363429657595980@newsletter",
+      "error": "Session has already started. Reminder skipped safely.",
+      "created_at": "2026-10-02T11:25:32.380Z",
+      "updated_at": "2026-10-02T11:25:32.380Z",
+      "id": 1,
+      "message": null,
+      "sent_at": null
+    },
+    {
+      "session_config_id": 2,
+      "session_name": "Afternoon",
+      "schedule_date": "2026-10-02",
+      "session_time": "14:00",
+      "reminder_time": "13:30",
+      "status": "MISSED",
+      "destination": "120363429657595980@newsletter",
+      "error": "Session has already started. Reminder skipped safely.",
+      "created_at": "2026-10-02T11:25:32.397Z",
+      "updated_at": "2026-10-02T11:25:32.397Z",
+      "id": 2,
+      "message": null,
+      "sent_at": null
+    }
+  ],
+  "message_templates": [
+    {
+      "key": "SIGNAL",
+      "name": "Signal Message",
+      "template": "🎯 WinGo 1M Signal\n━━━━━━━━━━━━━━━━\n📊 Period: {issueNumber}\n🎲 Prediction: {prediction}\n🎨 Color: {color}\n📈 Confidence: {confidence}%\n⏱️ Time: {time}\n━━━━━━━━━━━━━━━━\n⚠️ Play responsibly",
+      "enabled": true,
+      "updated_at": "2026-10-04T01:27:02.540Z"
+    },
+    {
+      "key": "WIN",
+      "name": "WIN Result Message",
+      "template": "✅ WIN!\nPeriod: {issueNumber}\nResult: {resultNumber} ({resultSize}, {resultColor})\nOur Signal: {predictionSize} {predictionColor} ✅",
+      "enabled": true,
+      "updated_at": "2026-10-04T01:27:02.540Z"
+    },
+    {
+      "key": "LOSS",
+      "name": "LOSS Result Message",
+      "template": "❌ LOSS\nPeriod: {issueNumber}\nResult: {resultNumber} ({resultSize}, {resultColor})\nOur Signal: {predictionSize} {predictionColor} ❌",
+      "enabled": true,
+      "updated_at": "2026-10-04T01:27:02.540Z"
+    },
+    {
+      "key": "TEST",
+      "name": "Test Message",
+      "template": "🧪 TEST MESSAGE\n━━━━━━━━━━━━━━━━\n📊 Period: {issueNumber}\n🎲 Prediction: {prediction}\n🎨 Color: {color}\n📈 Confidence: {confidence}%\n⏱️ Time: {time}\n━━━━━━━━━━━━━━━━",
+      "enabled": true,
+      "updated_at": "2026-10-04T01:27:02.540Z"
+    },
+    {
+      "key": "TARGET_COMPLETE",
+      "name": "Session Target Completed",
+      "template": "🎯 SESSION TARGET COMPLETED\n━━━━━━━━━━━━━━━━\n🏆 Target: {targetWins} WIN\n✅ Wins: {wins}\n❌ Losses: {losses}\n📊 Total Signals: {totalSignals}\n📈 Win Rate: {winRate}%\n⏰ Session: {sessionName}\n🕐 Started: {startTime}\n🕐 Completed: {endTime}\n━━━━━━━━━━━━━━━━\n🎉 Today's session target has been completed successfully.",
+      "enabled": true,
+      "updated_at": "2026-10-04T01:27:02.540Z"
+    },
+    {
+      "key": "SESSION_HISTORY",
+      "name": "Session History Summary",
+      "template": "📋 SESSION HISTORY\n━━━━━━━━━━━━━━━━\n⏰ Session: {sessionName}\n🕐 Time: {startTime} → {endTime}\n\nTotal Predictions: {totalSignals}\n\n✅ WIN: {wins}\n❌ LOSS: {losses}\n\n📈 Win Rate: {winRate}%\n\n━━━━━━━━━━━━━━━━\n🏆 Target: {targetWins} WIN\n🎯 Status: {status}\n━━━━━━━━━━━━━━━━\n\n{signalsList}",
+      "enabled": true,
+      "updated_at": "2026-10-04T01:27:02.540Z"
+    },
+    {
+      "key": "REMINDER",
+      "name": "Pre-Session Reminder",
+      "template": "🔔 SESSION STARTING SOON\n━━━━━━━━━━━━━━━━\n💰 PREPARE YOUR FUNDS\n\nYour next WinGo session will start in {minutes_remaining} minutes.\n\n⏰ Session: {session_time}\n🎯 Target: {target} WIN\n\n🌐 Website:\n{website_link}\n\nPlease prepare your funds and be ready.\n\n━━━━━━━━━━━━━━━━\n⚠️ Play responsibly.",
+      "enabled": true,
+      "updated_at": "2026-10-04T01:27:02.540Z"
+    }
+  ]
+}
