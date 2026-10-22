@@ -244,4 +244,8 @@ Please prepare your funds and be ready.
     expect(isAlreadySent(3, '20:00')).toBe(false); // Eligible for reminder
     expect(isAlreadySent(4, '06:00')).toBe(false); // Eligible for reminder
   });
+
+  it('provides an on-demand sendSessionReminder method', () => {
+    expect(typeof sessionReminderService.sendSessionReminder).toBe('function');
+  });
 });

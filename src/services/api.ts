@@ -515,6 +515,18 @@ class ApiService {
     });
   }
 
+  async sendSessionReminder(configId: number): Promise<{
+    success: boolean;
+    destination: string;
+    messageId?: string;
+    renderedMessage: string;
+    message: string;
+  }> {
+    return this.request(`/api/reminders/send-session/${configId}`, {
+      method: 'POST',
+    });
+  }
+
   async getReminderHistory(limit = 50): Promise<import('../types/index.js').SessionReminderRecord[]> {
     return this.request(`/api/reminders/history?limit=${limit}`);
   }

@@ -1,12 +1,42 @@
+import { DateTime } from 'luxon';
 import type { WinGoSize } from '../wingo/rules.js';
 import { templateService, DEFAULT_TEMPLATES } from '../services/templates.js';
+import { query } from '../db/index.js';
 
-export function formatTime(date = new Date()): string {
-  return date.toTimeString().split(' ')[0]; // HH:MM:SS
+let cachedBotTimezone = 'Asia/Karachi';
+let lastTimezoneCheck = 0;
+
+export async function getBotTimezone(): Promise<string> {
+  const now = Date.now();
+  if (now - lastTimezoneCheck < 60000 && cachedBotTimezone) {
+    return cachedBotTimezone;
+  }
+  try {
+    const res = await query<{ value: string }>(
+      `SELECT value FROM settings WHERE key = 'bot_timezone'`
+    );
+    if (res.rows[0]?.value?.trim()) {
+      cachedBotTimezone = res.rows[0].value.trim();
+    }
+  } catch {}
+  lastTimezoneCheck = now;
+  return cachedBotTimezone || 'Asia/Karachi';
 }
 
-export function formatDate(date = new Date()): string {
-  return date.toISOString().split('T')[0]; // YYYY-MM-DD
+export function formatTime(date: Date = new Date(), timezone: string = cachedBotTimezone || 'Asia/Karachi'): string {
+  try {
+    return DateTime.fromJSDate(date).setZone(timezone || 'Asia/Karachi').toFormat('hh:mm:ss a');
+  } catch {
+    return DateTime.fromJSDate(date).setZone('Asia/Karachi').toFormat('hh:mm:ss a');
+  }
+}
+
+export function formatDate(date: Date = new Date(), timezone: string = cachedBotTimezone || 'Asia/Karachi'): string {
+  try {
+    return DateTime.fromJSDate(date).setZone(timezone || 'Asia/Karachi').toFormat('yyyy-MM-dd');
+  } catch {
+    return DateTime.fromJSDate(date).setZone('Asia/Karachi').toFormat('yyyy-MM-dd');
+  }
 }
 
 /**
@@ -111,8 +141,14 @@ export async function renderDynamicSignal(params: {
   confidence: number;
   time?: string;
 }): Promise<string> {
-  const time = params.time || formatTime();
-  const date = formatDate();
+  const tz = await getBotTimezone();
+  const now = new Date();
+  const time = params.time || formatTime(now, tz);
+  const date = formatDate(now, tz);
+  const time12h = formatTime(now, tz);
+  const time24h = DateTime.fromJSDate(now).setZone(tz).toFormat('HH:mm:ss');
+  const timeShort = DateTime.fromJSDate(now).setZone(tz).toFormat('hh:mm a');
+
   return templateService.render('SIGNAL', {
     issueNumber: params.issueNumber,
     prediction: params.prediction,
@@ -122,7 +158,11 @@ export async function renderDynamicSignal(params: {
     predictionColor: params.color,
     confidence: params.confidence,
     time,
+    time12h,
+    time24h,
+    time_short: timeShort,
     date,
+    timezone: tz,
   });
 }
 
@@ -135,6 +175,10 @@ export async function renderDynamicWin(params: {
   predictedColor: string;
   confidence?: number;
 }): Promise<string> {
+  const tz = await getBotTimezone();
+  const now = new Date();
+  const time = formatTime(now, tz);
+  const date = formatDate(now, tz);
   return templateService.render('WIN', {
     issueNumber: params.issueNumber,
     resultNumber: params.actualNumber,
@@ -147,8 +191,9 @@ export async function renderDynamicWin(params: {
     color: params.actualColor,
     confidence: params.confidence ?? 75,
     status: 'WIN',
-    time: formatTime(),
-    date: formatDate(),
+    time,
+    date,
+    timezone: tz,
   });
 }
 
@@ -161,6 +206,10 @@ export async function renderDynamicLoss(params: {
   predictedColor: string;
   confidence?: number;
 }): Promise<string> {
+  const tz = await getBotTimezone();
+  const now = new Date();
+  const time = formatTime(now, tz);
+  const date = formatDate(now, tz);
   return templateService.render('LOSS', {
     issueNumber: params.issueNumber,
     resultNumber: params.actualNumber,
@@ -173,12 +222,17 @@ export async function renderDynamicLoss(params: {
     color: params.actualColor,
     confidence: params.confidence ?? 75,
     status: 'LOSS',
-    time: formatTime(),
-    date: formatDate(),
+    time,
+    date,
+    timezone: tz,
   });
 }
 
 export async function renderDynamicTest(destination: string): Promise<string> {
+  const tz = await getBotTimezone();
+  const now = new Date();
+  const time = formatTime(now, tz);
+  const date = formatDate(now, tz);
   return templateService.render('TEST', {
     issueNumber: '202609230000',
     prediction: 'BIG',
@@ -187,9 +241,10 @@ export async function renderDynamicTest(destination: string): Promise<string> {
     color: 'GREEN',
     predictionColor: 'GREEN',
     confidence: 85,
-    time: formatTime(),
-    date: formatDate(),
+    time,
+    date,
     destination,
+    timezone: tz,
   });
 }
 

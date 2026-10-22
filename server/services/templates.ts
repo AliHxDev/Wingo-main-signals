@@ -1,3 +1,4 @@
+import { DateTime } from 'luxon';
 import { query } from '../db/index.js';
 import { logger } from './logger.js';
 
@@ -268,9 +269,10 @@ export class TemplateService {
    * Interpolates variables into a template string safely without crashing.
    */
   renderString(templateString: string, variables: TemplateVariables): string {
-    const now = new Date();
-    const defaultTime = now.toTimeString().split(' ')[0]; // HH:MM:SS
-    const defaultDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const targetTz = variables.timezone ? String(variables.timezone) : 'Asia/Karachi';
+    const nowDt = DateTime.now().setZone(targetTz);
+    const defaultTime = nowDt.toFormat('hh:mm:ss a');
+    const defaultDate = nowDt.toFormat('yyyy-MM-dd');
 
     const cleanStr = (val: any, fallback = ''): string => {
       if (val === undefined || val === null) return fallback;
@@ -429,8 +431,8 @@ export class TemplateService {
       size: 'BIG',
       color: 'GREEN',
       confidence: 78,
-      time: now.toTimeString().split(' ')[0],
-      date: now.toISOString().split('T')[0],
+      time: DateTime.now().setZone('Asia/Karachi').toFormat('hh:mm:ss a'),
+      date: DateTime.now().setZone('Asia/Karachi').toFormat('yyyy-MM-dd'),
       resultNumber: 7,
       resultSize: 'BIG',
       resultColor: 'GREEN',

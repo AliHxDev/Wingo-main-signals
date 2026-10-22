@@ -611,18 +611,30 @@ Please prepare your funds and be ready.
     ON CONFLICT (id) DO NOTHING;
   `);
 
-  // Seed Admin user
-  const adminRes = await target.query('SELECT id FROM users WHERE username = $1', [
+  // Seed or sync Admin user
+  const adminRes = await target.query('SELECT id, password_hash FROM users WHERE username = $1', [
     config.ADMIN_USERNAME,
   ]);
+  const salt = await bcrypt.genSalt(10);
+  const hash = await bcrypt.hash(config.ADMIN_PASSWORD, salt);
+
   if (adminRes.rowCount === 0) {
-    const salt = await bcrypt.genSalt(10);
-    const hash = await bcrypt.hash(config.ADMIN_PASSWORD, salt);
     await target.query(
       'INSERT INTO users (username, password_hash) VALUES ($1, $2)',
       [config.ADMIN_USERNAME, hash]
     );
     logger.info({ username: config.ADMIN_USERNAME }, 'Default admin account created');
+  } else {
+    // If the database password hash does not match current config or admin123456, sync it
+    const currentHash = adminRes.rows[0]?.password_hash;
+    const isMatching = currentHash ? await bcrypt.compare(config.ADMIN_PASSWORD, currentHash) : false;
+    if (!isMatching) {
+      await target.query(
+        'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE username = $2',
+        [hash, config.ADMIN_USERNAME]
+      );
+      logger.info({ username: config.ADMIN_USERNAME }, 'Admin account password synchronized with configuration');
+    }
   }
 
   // Seed Default Settings

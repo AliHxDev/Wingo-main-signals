@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
+import { DateTime } from 'luxon';
 import { query } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { sessionScheduler } from '../services/sessionScheduler.js';
@@ -541,8 +542,8 @@ sessionsRouter.post('/broadcast-history', requireAuth, async (req: Request, res:
 
     const historyMsg = await renderDynamicSessionHistory({
       sessionName: sess.session_name,
-      startTime: sess.started_at ? new Date(sess.started_at).toLocaleTimeString() : 'N/A',
-      endTime: sess.completed_at ? new Date(sess.completed_at).toLocaleTimeString() : new Date().toLocaleTimeString(),
+      startTime: sess.started_at ? DateTime.fromISO(new Date(sess.started_at).toISOString()).setZone('Asia/Karachi').toFormat('hh:mm a') : 'N/A',
+      endTime: sess.completed_at ? DateTime.fromISO(new Date(sess.completed_at).toISOString()).setZone('Asia/Karachi').toFormat('hh:mm a') : DateTime.now().setZone('Asia/Karachi').toFormat('hh:mm a'),
       targetWins: sess.target_wins,
       wins: sess.wins,
       losses: sess.losses,
@@ -556,6 +557,13 @@ sessionsRouter.post('/broadcast-history', requireAuth, async (req: Request, res:
 
     if (destination && destination !== 'dashboard') {
       await whatsAppManager.sendMessage(historyMsg, destination, 'SESSION_HISTORY');
+      await query(
+        `UPDATE bot_sessions 
+         SET history_message_status = 'SENT', history_message_sent_at = NOW(), history_sent_at = NOW(), updated_at = NOW()
+         WHERE id = $1`,
+        [targetSessionId]
+      ).catch(() => {});
+      sessionScheduler.markSessionHistorySent(targetSessionId);
     }
 
     res.json({

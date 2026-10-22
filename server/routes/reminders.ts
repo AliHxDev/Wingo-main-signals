@@ -85,6 +85,25 @@ remindersRouter.post('/send-test', requireAuth, async (_req: Request, res: Respo
 });
 
 /**
+ * POST /api/reminders/send-session/:id
+ * Sends an on-demand pre-session reminder for a specific session to the active WhatsApp channel.
+ */
+remindersRouter.post('/send-session/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const configId = parseInt(req.params.id, 10);
+    if (isNaN(configId)) {
+      res.status(400).json({ error: 'Invalid session config ID' });
+      return;
+    }
+    const result = await sessionReminderService.sendSessionReminder(configId);
+    res.json(result);
+  } catch (err: any) {
+    logger.error({ err: err.message }, 'Failed to send session reminder');
+    res.status(400).json({ error: err.message || 'Failed to send session reminder' });
+  }
+});
+
+/**
  * GET /api/reminders/history
  * Returns the latest reminder history log.
  */

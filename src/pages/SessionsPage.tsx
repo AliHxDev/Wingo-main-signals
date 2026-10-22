@@ -52,6 +52,7 @@ export const SessionsPage: React.FC<SessionsPageProps> = ({
   const [historyFilter, setHistoryFilter] = useState<'today' | 'yesterday' | 'last7' | 'last30' | 'all'>('today');
   const [isLoading, setIsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [sendingReminderId, setSendingReminderId] = useState<number | null>(null);
 
   // Edit / Create Config Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -215,6 +216,22 @@ export const SessionsPage: React.FC<SessionsPageProps> = ({
       onNotification(err.message || 'Failed to stop session schedule', true);
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleSendReminder = async (configId: number) => {
+    if (!currentUser) {
+      onOpenLogin();
+      return;
+    }
+    try {
+      setSendingReminderId(configId);
+      const res = await api.sendSessionReminder(configId);
+      onNotification(res.message || 'Pre-session reminder delivered to WhatsApp!');
+    } catch (err: any) {
+      onNotification(err.message || 'Failed to send pre-session reminder', true);
+    } finally {
+      setSendingReminderId(null);
     }
   };
 
@@ -821,6 +838,20 @@ export const SessionsPage: React.FC<SessionsPageProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2 self-end md:self-center">
+                    <button
+                      onClick={() => handleSendReminder(cfg.id)}
+                      disabled={actionLoading || sendingReminderId === cfg.id}
+                      className="px-3 py-1.5 rounded-lg bg-amber-950/60 border border-amber-800/70 text-amber-300 hover:bg-amber-900/60 text-xs font-semibold transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                      title="Send pre-session reminder to WhatsApp right now"
+                    >
+                      {sendingReminderId === cfg.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Bell className="w-3.5 h-3.5 fill-current" />
+                      )}
+                      Send Reminder
+                    </button>
+
                     <button
                       onClick={() => handleStartManual(cfg.id)}
                       disabled={actionLoading}

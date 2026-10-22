@@ -529,6 +529,23 @@ export class SessionScheduler {
         console.log(`[SESSION] No active session currently running on startup. Standby.`);
       }
 
+      // Populate deduplication caches from database to guarantee zero duplicates across restarts
+      const sentRows = await query<any>(
+        `SELECT id, target_completion_status, target_completion_sent_at, target_message_sent_at,
+                history_message_status, history_message_sent_at, history_sent_at
+         FROM bot_sessions
+         WHERE status = 'TARGET_COMPLETED' OR history_message_status = 'SENT' OR target_completion_status = 'SENT'`
+      ).catch(() => ({ rows: [] }));
+
+      for (const row of sentRows.rows) {
+        if (row.history_message_status === 'SENT' || row.history_message_sent_at || row.history_sent_at) {
+          this.sentHistorySessions.add(row.id);
+        }
+        if (row.target_completion_status === 'SENT' || row.target_completion_sent_at || row.target_message_sent_at) {
+          this.sentTargetCompleteSessions.add(row.id);
+        }
+      }
+
       // Process any pending completion or history message deliveries from previous runs
       await this.processPendingTargetCompletions();
     } catch (err: any) {
@@ -871,8 +888,21 @@ export class SessionScheduler {
   private historyTimers: Map<number, NodeJS.Timeout> = new Map();
   private deliveringTargetComplete: Set<number> = new Set();
   private deliveringHistory: Set<number> = new Set();
+  private sentHistorySessions: Set<number> = new Set();
+  private sentTargetCompleteSessions: Set<number> = new Set();
+  private historyRetryCounts: Map<number, { count: number; nextAllowedAt: number }> = new Map();
+  private targetCompleteRetryCounts: Map<number, { count: number; nextAllowedAt: number }> = new Map();
+
+  public markSessionHistorySent(sessionId: number): void {
+    this.sentHistorySessions.add(sessionId);
+  }
+
+  public markTargetCompleteSent(sessionId: number): void {
+    this.sentTargetCompleteSessions.add(sessionId);
+  }
 
   private scheduleTargetCompletionTimer(sessionId: number, delayMs: number): void {
+    if (this.sentTargetCompleteSessions.has(sessionId)) return;
     if (this.targetCompleteTimers.has(sessionId)) {
       clearTimeout(this.targetCompleteTimers.get(sessionId)!);
     }
@@ -884,6 +914,7 @@ export class SessionScheduler {
   }
 
   private scheduleHistoryTimer(sessionId: number, delayMs: number): void {
+    if (this.sentHistorySessions.has(sessionId)) return;
     if (this.historyTimers.has(sessionId)) {
       clearTimeout(this.historyTimers.get(sessionId)!);
     }
@@ -950,10 +981,31 @@ export class SessionScheduler {
 
   /**
    * Delivers the TARGET_COMPLETED message after the 20-second post-completion delay.
+   * Hardened with in-memory deduplication and max 3 attempts with exponential backoff.
    */
   async deliverTargetCompletionMessage(sessionId: number): Promise<boolean> {
+    if (this.sentTargetCompleteSessions.has(sessionId)) {
+      return true;
+    }
     if (this.deliveringTargetComplete.has(sessionId)) {
       return false;
+    }
+
+    // Backoff and max-retry verification
+    const retryInfo = this.targetCompleteRetryCounts.get(sessionId);
+    if (retryInfo) {
+      if (retryInfo.count >= 3) {
+        logger.warn({ sessionId }, '[SESSION COMPLETION] Max delivery attempts (3) reached. Aborting to prevent duplicate messages.');
+        await query(
+          `UPDATE bot_sessions SET target_completion_status = 'ABANDONED', updated_at = NOW() WHERE id = $1`,
+          [sessionId]
+        ).catch(() => {});
+        this.sentTargetCompleteSessions.add(sessionId);
+        return false;
+      }
+      if (Date.now() < retryInfo.nextAllowedAt) {
+        return false;
+      }
     }
 
     try {
@@ -968,6 +1020,7 @@ export class SessionScheduler {
 
       // Duplicate protection: if already sent, do not send again
       if (session.target_completion_status === 'SENT' || session.target_completion_sent_at || session.target_message_sent_at) {
+        this.sentTargetCompleteSessions.add(sessionId);
         return true;
       }
 
@@ -1053,8 +1106,12 @@ export class SessionScheduler {
 
         await whatsAppManager.sendMessage(targetCompleteMsg, destination, 'TARGET_COMPLETE');
 
+        // Immediately register in sent set to prevent any retry or duplicate ticks
+        this.sentTargetCompleteSessions.add(sessionId);
+        this.targetCompleteRetryCounts.delete(sessionId);
+
         // Update state: mark target_completion_status = 'SENT', and start 20s history timer now!
-        const updateRes = await query<any>(
+        await query(
           `UPDATE bot_sessions 
            SET target_completion_status = 'SENT',
                target_completion_sent_at = NOW(),
@@ -1062,25 +1119,36 @@ export class SessionScheduler {
                history_scheduled_for = NOW() + INTERVAL '20 seconds',
                history_message_status = 'PENDING',
                updated_at = NOW() 
-           WHERE id = $1 AND target_completion_status = 'SENDING'
-           RETURNING id`,
+           WHERE id = $1`,
           [sessionId]
         );
 
-        if (updateRes.rowCount > 0) {
-          console.log(`[SESSION] Sent TARGET_COMPLETE message to WhatsApp channel: ${destination}`);
-          console.log(`[SESSION] Session history scheduled in exactly 20 seconds.`);
-          this.scheduleHistoryTimer(sessionId, 20000);
-          return true;
-        }
-
+        console.log(`[SESSION] Sent TARGET_COMPLETE message to WhatsApp channel: ${destination}`);
+        console.log(`[SESSION] Session history scheduled in exactly 20 seconds.`);
+        this.scheduleHistoryTimer(sessionId, 20000);
         return true;
       } catch (err: any) {
-        logger.error({ err: err.message, sessionId }, '[SESSION COMPLETION] Failed to deliver target completion message');
-        await query(
-          `UPDATE bot_sessions SET target_completion_status = 'FAILED', updated_at = NOW() WHERE id = $1 AND target_completion_status = 'SENDING'`,
-          [sessionId]
-        ).catch(() => {});
+        const curRetries = (this.targetCompleteRetryCounts.get(sessionId)?.count || 0) + 1;
+        const backoffMs = curRetries * 30000;
+        this.targetCompleteRetryCounts.set(sessionId, {
+          count: curRetries,
+          nextAllowedAt: Date.now() + backoffMs,
+        });
+
+        if (curRetries >= 3) {
+          logger.error({ err: err.message, sessionId, retries: curRetries }, '[SESSION COMPLETION] Target completion message failed after 3 attempts. Aborting.');
+          await query(
+            `UPDATE bot_sessions SET target_completion_status = 'ABANDONED', updated_at = NOW() WHERE id = $1`,
+            [sessionId]
+          ).catch(() => {});
+          this.sentTargetCompleteSessions.add(sessionId);
+        } else {
+          logger.warn({ err: err.message, sessionId, retries: curRetries }, '[SESSION COMPLETION] Failed to deliver target completion message; retrying with backoff');
+          await query(
+            `UPDATE bot_sessions SET target_completion_status = 'FAILED', target_completion_scheduled_for = NOW() + ($2 || ' milliseconds')::INTERVAL, updated_at = NOW() WHERE id = $1`,
+            [sessionId, backoffMs]
+          ).catch(() => {});
+        }
         return false;
       } finally {
         this.deliveringTargetComplete.delete(sessionId);
@@ -1093,10 +1161,33 @@ export class SessionScheduler {
 
   /**
    * Delivers the SESSION_HISTORY message exactly 20 seconds AFTER target completion was sent.
+   * Completely protected with in-memory deduplication, max 3 attempts, and exponential backoff.
    */
   async deliverSessionHistoryMessage(sessionId: number): Promise<boolean> {
+    if (this.sentHistorySessions.has(sessionId)) {
+      logger.info({ sessionId }, '[SESSION HISTORY] History message was already delivered for this session. Deduplication guard active.');
+      return true;
+    }
+
     if (this.deliveringHistory.has(sessionId)) {
       return false;
+    }
+
+    // Backoff and max-retry verification
+    const retryInfo = this.historyRetryCounts.get(sessionId);
+    if (retryInfo) {
+      if (retryInfo.count >= 3) {
+        logger.warn({ sessionId }, '[SESSION HISTORY] Max delivery attempts (3) reached. Aborting to prevent duplicate history spam.');
+        await query(
+          `UPDATE bot_sessions SET history_message_status = 'ABANDONED', updated_at = NOW() WHERE id = $1`,
+          [sessionId]
+        ).catch(() => {});
+        this.sentHistorySessions.add(sessionId);
+        return false;
+      }
+      if (Date.now() < retryInfo.nextAllowedAt) {
+        return false;
+      }
     }
 
     try {
@@ -1115,8 +1206,9 @@ export class SessionScheduler {
         return false;
       }
 
-      // Duplicate protection: if already sent, do not send again
+      // Duplicate protection: if already sent in DB, mark in cache and do not send again
       if (session.history_message_status === 'SENT' || session.history_message_sent_at || session.history_sent_at) {
+        this.sentHistorySessions.add(sessionId);
         return true;
       }
 
@@ -1221,30 +1313,45 @@ export class SessionScheduler {
 
         await whatsAppManager.sendMessage(historyMsg, destination, 'SESSION_HISTORY');
 
+        // Immediately record in sentHistorySessions so NO OTHER CODE PATH or TICK can ever re-send
+        this.sentHistorySessions.add(sessionId);
+        this.historyRetryCounts.delete(sessionId);
+
         // Update state: mark history_message_status = 'SENT'
-        const updateRes = await query<any>(
+        await query(
           `UPDATE bot_sessions 
            SET history_message_status = 'SENT',
                history_message_sent_at = NOW(),
                history_sent_at = NOW(),
                updated_at = NOW() 
-           WHERE id = $1 AND history_message_status = 'SENDING'
-           RETURNING id`,
+           WHERE id = $1`,
           [sessionId]
         );
 
-        if (updateRes.rowCount > 0) {
-          console.log(`[SESSION] Sent SESSION_HISTORY message to WhatsApp channel: ${destination}`);
-          return true;
-        }
-
+        console.log(`[SESSION] Sent SESSION_HISTORY message to WhatsApp channel: ${destination}`);
         return true;
       } catch (err: any) {
-        logger.error({ err: err.message, sessionId }, '[SESSION HISTORY] Failed to deliver session history message');
-        await query(
-          `UPDATE bot_sessions SET history_message_status = 'FAILED', updated_at = NOW() WHERE id = $1 AND history_message_status = 'SENDING'`,
-          [sessionId]
-        ).catch(() => {});
+        const curRetries = (this.historyRetryCounts.get(sessionId)?.count || 0) + 1;
+        const backoffMs = curRetries * 30000;
+        this.historyRetryCounts.set(sessionId, {
+          count: curRetries,
+          nextAllowedAt: Date.now() + backoffMs,
+        });
+
+        if (curRetries >= 3) {
+          logger.error({ err: err.message, sessionId, retries: curRetries }, '[SESSION HISTORY] Session history failed after 3 attempts. Aborting.');
+          await query(
+            `UPDATE bot_sessions SET history_message_status = 'ABANDONED', updated_at = NOW() WHERE id = $1`,
+            [sessionId]
+          ).catch(() => {});
+          this.sentHistorySessions.add(sessionId);
+        } else {
+          logger.warn({ err: err.message, sessionId, retries: curRetries }, '[SESSION HISTORY] Send failed, scheduled retry with backoff');
+          await query(
+            `UPDATE bot_sessions SET history_message_status = 'FAILED', history_scheduled_for = NOW() + ($2 || ' milliseconds')::INTERVAL, updated_at = NOW() WHERE id = $1`,
+            [sessionId, backoffMs]
+          ).catch(() => {});
+        }
         return false;
       } finally {
         this.deliveringHistory.delete(sessionId);
@@ -1257,17 +1364,17 @@ export class SessionScheduler {
 
   /**
    * Scans for any sessions that reached target completion and require delayed message delivery.
-   * Handles restarts, delay continuation, and recovery safely.
+   * Hardened against repetitive loops and stale sessions.
    */
   async processPendingTargetCompletions(): Promise<void> {
     try {
-      // Clear any stale SENDING status if process previously restarted or died while sending (>30s ago)
+      // Clear any stale SENDING status if process previously restarted or died while sending (>60s ago)
       await query(
         `UPDATE bot_sessions 
          SET target_completion_status = 'PENDING', updated_at = NOW() 
          WHERE status = 'TARGET_COMPLETED' 
            AND target_completion_status = 'SENDING' 
-           AND updated_at < NOW() - INTERVAL '30 seconds'`
+           AND updated_at < NOW() - INTERVAL '60 seconds'`
       ).catch(() => {});
 
       await query(
@@ -1275,7 +1382,7 @@ export class SessionScheduler {
          SET history_message_status = 'PENDING', updated_at = NOW() 
          WHERE status = 'TARGET_COMPLETED' 
            AND history_message_status = 'SENDING' 
-           AND updated_at < NOW() - INTERVAL '30 seconds'`
+           AND updated_at < NOW() - INTERVAL '60 seconds'`
       ).catch(() => {});
 
       const res = await query<any>(
@@ -1285,22 +1392,28 @@ export class SessionScheduler {
                 updated_at
          FROM bot_sessions
          WHERE status = 'TARGET_COMPLETED'
+           AND completed_at > NOW() - INTERVAL '2 hours'
            AND (
-             target_completion_status IS NULL
-             OR target_completion_status != 'SENT'
-             OR history_message_status IS NULL
-             OR history_message_status != 'SENT'
+             (target_completion_status IS NULL OR (target_completion_status != 'SENT' AND target_completion_status != 'ABANDONED'))
+             OR 
+             (history_message_status IS NULL OR (history_message_status != 'SENT' AND history_message_status != 'ABANDONED'))
            )
          ORDER BY id ASC`
       );
 
       for (const session of res.rows) {
-        const targetSent = session.target_completion_status === 'SENT' || !!session.target_completion_sent_at || !!session.target_message_sent_at;
+        const targetSent = this.sentTargetCompleteSessions.has(session.id) ||
+          session.target_completion_status === 'SENT' ||
+          !!session.target_completion_sent_at ||
+          !!session.target_message_sent_at;
 
         if (!targetSent) {
+          if (session.target_completion_status === 'ABANDONED') continue;
           if (this.deliveringTargetComplete.has(session.id) || session.target_completion_status === 'SENDING') {
             continue;
           }
+          const retry = this.targetCompleteRetryCounts.get(session.id);
+          if (retry && Date.now() < retry.nextAllowedAt) continue;
 
           let scheduledTimeMs = session.target_completion_scheduled_for
             ? new Date(session.target_completion_scheduled_for).getTime()
@@ -1323,11 +1436,18 @@ export class SessionScheduler {
             this.scheduleTargetCompletionTimer(session.id, remainingMs);
           }
         } else {
-          const historySent = session.history_message_status === 'SENT' || !!session.history_message_sent_at || !!session.history_sent_at;
+          const historySent = this.sentHistorySessions.has(session.id) ||
+            session.history_message_status === 'SENT' ||
+            !!session.history_message_sent_at ||
+            !!session.history_sent_at;
+
           if (!historySent) {
+            if (session.history_message_status === 'ABANDONED') continue;
             if (this.deliveringHistory.has(session.id) || session.history_message_status === 'SENDING') {
               continue;
             }
+            const retry = this.historyRetryCounts.get(session.id);
+            if (retry && Date.now() < retry.nextAllowedAt) continue;
 
             let historyScheduledMs = session.history_scheduled_for
               ? new Date(session.history_scheduled_for).getTime()

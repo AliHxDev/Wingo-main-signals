@@ -664,22 +664,34 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Reminder Timing */}
           <div className="p-4 bg-neutral-950 rounded-xl border border-neutral-800/80">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Reminder Before Session</span>
-              <span className="text-xs font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
-                {reminderMinutesBefore} Minutes
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Reminder Timing</span>
+              <span className="text-xs font-mono font-bold text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-md border border-amber-500/20">
+                {reminderMinutesBefore} Minutes Before
               </span>
             </div>
-            <p className="text-xs text-neutral-300 font-mono">
-              Calculation: Session Start Time − 30 minutes
+            <p className="text-xs text-neutral-400 mb-2.5">
+              Select how many minutes prior to session start the reminder should broadcast:
             </p>
-            <div className="mt-2 text-[11px] text-neutral-500 flex items-center gap-3">
-              <span>06:00 AM → 05:30 AM</span>
-              <span>•</span>
-              <span>02:00 PM → 01:30 PM</span>
-              <span>•</span>
-              <span>08:00 PM → 07:30 PM</span>
+            <div className="flex flex-wrap gap-1.5">
+              {[5, 10, 15, 20, 30, 45, 60].map((mins) => (
+                <button
+                  key={mins}
+                  type="button"
+                  onClick={() => setReminderMinutesBefore(mins)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-mono font-semibold transition ${
+                    reminderMinutesBefore === mins
+                      ? 'bg-amber-500 text-neutral-950 shadow-md shadow-amber-500/20'
+                      : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-neutral-800'
+                  }`}
+                >
+                  {mins}m
+                </button>
+              ))}
             </div>
+            <p className="text-[11px] text-neutral-500 mt-2 font-mono">
+              Auto-calculates Pakistan Time (Asia/Karachi UTC+5)
+            </p>
           </div>
 
           {/* Active WhatsApp Destination */}
@@ -687,15 +699,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">WhatsApp Destination</span>
               <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                Same As Bot Channel
+                Channel Broadcast
               </span>
             </div>
             <p className="text-xs text-neutral-200 font-mono truncate" title={newsletterJid || 'No channel configured'}>
               {newsletterJid || '⚠️ Please configure Newsletter JID above'}
             </p>
-            <p className="text-[11px] text-neutral-500 mt-1">
-              Sent to the exact same WhatsApp Newsletter Channel configured above.
-            </p>
+            <div className="mt-2 text-[11px] text-neutral-400 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>Reminders deliver to the exact same WhatsApp channel.</span>
+            </div>
           </div>
         </div>
 

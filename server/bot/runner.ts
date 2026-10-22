@@ -122,6 +122,10 @@ export class BotRunner {
   private lastError: string | null = null;
   private pollingIntervalSeconds = 60;
   private confidenceThreshold = 65;
+  private isWatcherCycleExecuting = false;
+  private dispatchedSignals: Set<string> = new Set();
+  private dispatchedResults: Set<string> = new Set();
+  private inFlightReconnectDeliveries: Set<string> = new Set();
 
   /**
    * Starts the bot in NORMAL BOT MODE.
@@ -376,6 +380,17 @@ export class BotRunner {
         `[SIGNAL] [Mode: ${currentMode}] 15s Signal generated for period ${targetIssue}: ${prediction.prediction} (${prediction.predictedColor}, ${prediction.confidence}%)`
       );
 
+      // 5.1 Deduplication guard: never re-predict or duplicate same period
+      if (this.dispatchedSignals.has(targetIssue)) {
+        logger.info({ issue: targetIssue }, 'Signal already dispatched for this period. Skipping duplicate execution.');
+        return;
+      }
+      this.dispatchedSignals.add(targetIssue);
+      if (this.dispatchedSignals.size > 1000) {
+        const arr = Array.from(this.dispatchedSignals);
+        for (let i = 0; i < 300; i++) this.dispatchedSignals.delete(arr[i]);
+      }
+
       // Determine initial delivery state
       const targetDestination = destination || 'dashboard';
       let sentAtVal: Date | null = null;
@@ -461,12 +476,16 @@ export class BotRunner {
     }
 
     this.watcherTimer = setInterval(async () => {
+      if (this.isWatcherCycleExecuting) return;
+      this.isWatcherCycleExecuting = true;
       try {
         await this.detectAndTrackCurrentPeriod();
         await this.settlePendingSignals();
         await this.deliverPendingUnsentSignalsOnReconnect();
       } catch (err: any) {
         logger.error({ err: err.message }, 'Error in result watcher loop');
+      } finally {
+        this.isWatcherCycleExecuting = false;
       }
     }, 2000);
 
@@ -623,32 +642,39 @@ export class BotRunner {
     if (pendingUnsent.rowCount === 0) return;
 
     for (const sig of pendingUnsent.rows) {
-      // Check if period is still currently active
-      const currentPeriod = getCurrentWinGoPeriod(0);
-      if (sig.issue_number === currentPeriod.issueNumber) {
-        try {
-          const signalMessage = await renderDynamicSignal({
-            issueNumber: sig.issue_number,
-            prediction: sig.prediction,
-            color: sig.predicted_color,
-            confidence: sig.confidence,
-          });
+      if (this.inFlightReconnectDeliveries.has(sig.issue_number)) continue;
+      this.inFlightReconnectDeliveries.add(sig.issue_number);
+      try {
+        // Check if period is still currently active
+        const currentPeriod = getCurrentWinGoPeriod(0);
+        if (sig.issue_number === currentPeriod.issueNumber) {
+          try {
+            const signalMessage = await renderDynamicSignal({
+              issueNumber: sig.issue_number,
+              prediction: sig.prediction,
+              color: sig.predicted_color,
+              confidence: sig.confidence,
+            });
 
-          await whatsAppManager.sendMessage(signalMessage, destination, 'SIGNAL');
-          await query(
-            `UPDATE signals SET sent_at = NOW(), sent_to = $2 WHERE id = $1 AND sent_at IS NULL`,
-            [sig.id, destination]
-          );
-          console.log(`[SIGNAL] Reconnected WhatsApp delivered queued signal for period ${sig.issue_number}`);
-        } catch (err: any) {
-          logger.warn({ err: err.message }, 'Failed to deliver signal on reconnect');
+            await whatsAppManager.sendMessage(signalMessage, destination, 'SIGNAL');
+            await query(
+              `UPDATE signals SET sent_at = NOW(), sent_to = $2 WHERE id = $1 AND sent_at IS NULL`,
+              [sig.id, destination]
+            );
+            console.log(`[SIGNAL] Reconnected WhatsApp delivered queued signal for period ${sig.issue_number}`);
+          } catch (err: any) {
+            logger.warn({ err: err.message }, 'Failed to deliver signal on reconnect');
+          }
         }
+      } finally {
+        this.inFlightReconnectDeliveries.delete(sig.issue_number);
       }
     }
   }
 
   /**
    * Dispatches the WIN/LOSS settlement message without blocking or delaying.
+   * Completely deduplicated so a period result is never dispatched twice.
    */
   private dispatchSettlementMessageAsync(
     messageText: string,
@@ -658,6 +684,16 @@ export class BotRunner {
   ): void {
     if (!destination || destination === 'dashboard') {
       return;
+    }
+
+    if (this.dispatchedResults.has(issueNumber)) {
+      logger.info({ issueNumber, status }, 'Result message already dispatched for period. Skipping duplicate.');
+      return;
+    }
+    this.dispatchedResults.add(issueNumber);
+    if (this.dispatchedResults.size > 1000) {
+      const arr = Array.from(this.dispatchedResults);
+      for (let i = 0; i < 300; i++) this.dispatchedResults.delete(arr[i]);
     }
 
     const isConnected = whatsAppManager.getStatus().status === 'connected';

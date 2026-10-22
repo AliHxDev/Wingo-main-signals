@@ -55,6 +55,10 @@ export class WhatsAppManager {
   private clearAuthFn: (() => Promise<void>) | null = null;
   private saveCredsFn: (() => Promise<void>) | null = null;
   private lastTestMessageSentAt = 0;
+  // Outgoing deduplication cache: `${destination}:::${messageText.trim()}` -> { timestamp, messageId, messageType }
+  private recentSentMessages: Map<string, { timestamp: number; messageId?: string; messageType: string }> = new Map();
+  // In-flight send promises map: prevents concurrent duplicate message dispatches
+  private inFlightSends: Map<string, Promise<{ success: boolean; messageId?: string; destination: string; duplicateSuppressed?: boolean }>> = new Map();
 
   constructor() {
     this.loadPersistedState().catch((err) => {
@@ -659,13 +663,14 @@ export class WhatsAppManager {
 
   /**
    * Sends a message with full readiness validation (Requirement 10 & 12).
+   * Includes automated deduplication guard to completely prevent repeating messages.
    * Catches errors safely without crashing the Node.js process.
    */
   async sendMessage(
     messageText: string,
     explicitDestination?: string,
     messageType: 'TEST_MESSAGE' | 'SIGNAL' | 'WIN' | 'LOSS' | 'TARGET_COMPLETE' | 'SESSION_HISTORY' | string = 'SIGNAL'
-  ): Promise<{ success: boolean; messageId?: string; destination: string }> {
+  ): Promise<{ success: boolean; messageId?: string; destination: string; duplicateSuppressed?: boolean }> {
     const destination = explicitDestination || (await getActiveWhatsAppDestination());
 
     if (!destination) {
@@ -680,6 +685,7 @@ export class WhatsAppManager {
       await this.logDelivery(messageType, destination, messageText, 'FAILED', err);
       throw new Error(err);
     }
+    const targetJid: string = validation.normalizedJid;
 
     if (!this.whatsappConnected() || !this.sock) {
       const err = 'WhatsApp is not connected. Please pair or connect WhatsApp before sending messages.';
@@ -687,36 +693,99 @@ export class WhatsAppManager {
       throw new Error(err);
     }
 
-    try {
-      const sendPromise = this.sock.sendMessage(validation.normalizedJid, { text: messageText });
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('WhatsApp delivery timed out after 12s')), 12000)
-      );
-      const sendResult = (await Promise.race([sendPromise, timeoutPromise])) as any;
-      const messageId = sendResult?.key?.id || undefined;
+    const isTest = messageType === 'TEST_MESSAGE';
+    const normalizedBody = messageText.replace(/\r\n/g, '\n').trim();
+    const dedupKey = `${targetJid}:::${normalizedBody}`;
 
-      await this.logDelivery(messageType, validation.normalizedJid, messageText, 'SUCCESS');
-      logLifecycle(LogEvent.SIGNAL_SENT, { destination: validation.normalizedJid, type: messageType, messageId });
-
-      return { success: true, messageId, destination: validation.normalizedJid };
-    } catch (err: any) {
-      const errMsg = err.message || 'Unknown Baileys send error';
-      await this.logDelivery(messageType, destination, messageText, 'FAILED', errMsg);
-      logLifecycle(LogEvent.SIGNAL_FAILED, { destination, type: messageType, error: errMsg });
-
-      // If socket disconnected during send, mark status and trigger recovery
-      if (
-        errMsg.includes('Connection Closed') ||
-        errMsg.includes('closed') ||
-        errMsg.includes('timed out')
-      ) {
-        this.status = 'disconnected';
-        this.lastError = `Send failed due to disconnected socket: ${errMsg}`;
-        await this.persistState();
+    // 1. Deduplication guard: block duplicate identical messages within 180 seconds (3 minutes)
+    if (!isTest) {
+      const inFlight = this.inFlightSends.get(dedupKey);
+      if (inFlight) {
+        logger.warn(
+          { destination: targetJid, messageType },
+          '[DEDUPLICATION] Identical message is currently in-flight. Re-using active send promise to prevent parallel duplicate.'
+        );
+        return await inFlight;
       }
 
-      throw new Error(`Failed to send WhatsApp message to ${destination}: ${errMsg}`);
+      const recent = this.recentSentMessages.get(dedupKey);
+      if (recent && Date.now() - recent.timestamp < 180000) {
+        const elapsedSec = Math.round((Date.now() - recent.timestamp) / 1000);
+        logger.warn(
+          { destination: targetJid, messageType, elapsedSec },
+          `[DEDUPLICATION] 🛑 Suppressed duplicate WhatsApp message (identical content already delivered ${elapsedSec}s ago).`
+        );
+        console.log(
+          `[DEDUPLICATION] Suppressed duplicate ${messageType} to ${targetJid} (already sent ${elapsedSec}s ago)`
+        );
+        return {
+          success: true,
+          messageId: recent.messageId || 'dedup-suppressed',
+          destination: targetJid,
+          duplicateSuppressed: true,
+        };
+      }
     }
+
+    // 2. Wrap send execution
+    const sendExecution: Promise<{ success: boolean; messageId?: string; destination: string; duplicateSuppressed?: boolean }> = (async () => {
+      try {
+        const sendPromise = this.sock!.sendMessage(targetJid, { text: messageText });
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('WhatsApp delivery timed out after 35s')), 35000)
+        );
+        const sendResult = (await Promise.race([sendPromise, timeoutPromise])) as any;
+        const messageId = sendResult?.key?.id || undefined;
+
+        if (!isTest) {
+          this.recentSentMessages.set(dedupKey, {
+            timestamp: Date.now(),
+            messageId,
+            messageType,
+          });
+
+          // Limit memory size
+          if (this.recentSentMessages.size > 1500) {
+            const expireThreshold = Date.now() - 180000;
+            for (const [k, v] of this.recentSentMessages.entries()) {
+              if (v.timestamp < expireThreshold) {
+                this.recentSentMessages.delete(k);
+              }
+            }
+          }
+        }
+
+        await this.logDelivery(messageType, targetJid, messageText, 'SUCCESS');
+        logLifecycle(LogEvent.SIGNAL_SENT, { destination: targetJid, type: messageType, messageId });
+
+        return { success: true, messageId, destination: targetJid };
+      } catch (err: any) {
+        const errMsg = err.message || 'Unknown Baileys send error';
+        await this.logDelivery(messageType, destination, messageText, 'FAILED', errMsg);
+        logLifecycle(LogEvent.SIGNAL_FAILED, { destination, type: messageType, error: errMsg });
+
+        // Only mark socket disconnected if the connection was actually dropped/closed
+        if (
+          errMsg.includes('Connection Closed') ||
+          errMsg.includes('connection closed') ||
+          errMsg.includes('Stream Errored')
+        ) {
+          this.status = 'disconnected';
+          this.lastError = `Send failed due to disconnected socket: ${errMsg}`;
+          await this.persistState();
+        }
+
+        throw new Error(`Failed to send WhatsApp message to ${destination}: ${errMsg}`);
+      } finally {
+        this.inFlightSends.delete(dedupKey);
+      }
+    })();
+
+    if (!isTest) {
+      this.inFlightSends.set(dedupKey, sendExecution);
+    }
+
+    return await sendExecution;
   }
 
   /**

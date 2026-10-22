@@ -274,6 +274,98 @@ export class SessionReminderService {
   }
 
   /**
+   * Sends an on-demand pre-session reminder for a specific session configuration.
+   * Bypasses background interval wait and deduplication cache to allow manual broadcasts or immediate testing.
+   */
+  async sendSessionReminder(configId: number): Promise<{
+    success: boolean;
+    destination: string;
+    messageId?: string;
+    renderedMessage: string;
+    message: string;
+  }> {
+    const configsRes = await query<any>(
+      'SELECT * FROM session_configs WHERE id = $1',
+      [configId]
+    );
+    const config = configsRes.rows[0];
+    if (!config) {
+      throw new Error(`Session configuration #${configId} not found`);
+    }
+
+    const settings = await this.getSettings();
+    const destination = await getActiveWhatsAppDestination();
+
+    if (!destination) {
+      throw new Error('No WhatsApp Newsletter destination configured. Please configure your Channel JID in Settings.');
+    }
+
+    const waCheck = await whatsAppManager.isReady();
+    if (!waCheck.ready) {
+      throw new Error(`WhatsApp is not connected: ${waCheck.reason || 'Please connect WhatsApp first in the WhatsApp tab'}`);
+    }
+
+    const tz = settings.timezone || this.defaultTimezone;
+    const nowTz = DateTime.now().setZone(tz);
+    const scheduleDate = nowTz.toFormat('yyyy-MM-dd');
+
+    // Calculate dynamic remaining minutes until session start time today
+    let minutesRemaining = settings.minutesBefore || 30;
+    if (config.start_time && typeof config.start_time === 'string') {
+      const [h, m] = config.start_time.split(':').map(Number);
+      if (!isNaN(h) && !isNaN(m)) {
+        const sessionStartDt = nowTz.set({ hour: h, minute: m, second: 0, millisecond: 0 });
+        const diffSeconds = Math.floor(sessionStartDt.diff(nowTz).as('seconds'));
+        if (diffSeconds > 0) {
+          minutesRemaining = Math.max(1, Math.round(diffSeconds / 60));
+        }
+      }
+    }
+
+    const rendered = await this.renderReminderMessage({
+      sessionName: config.session_name,
+      sessionTime: this.format12h(config.start_time),
+      targetWins: config.target_wins || 10,
+      websiteUrl: settings.websiteUrl,
+      date: scheduleDate,
+      timezone: tz,
+      minutesRemaining,
+      minutes_remaining: minutesRemaining,
+    });
+
+    const sendRes = await whatsAppManager.sendMessage(
+      rendered,
+      destination,
+      'PRE_SESSION_REMINDER'
+    );
+
+    // Save in persistent session_reminders history
+    try {
+      await query(
+        `INSERT INTO session_reminders (
+          session_config_id, session_name, schedule_date, session_time, reminder_time,
+          status, destination, message, error, sent_at, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, 'SENT', $6, $7, NULL, NOW(), NOW(), NOW())`,
+        [config.id, config.session_name, scheduleDate, config.start_time, nowTz.toFormat('HH:mm'), destination, rendered]
+      );
+    } catch (err: any) {
+      logger.warn({ err: err.message }, 'Failed to record manual session reminder in DB');
+    }
+
+    const cacheKey = `${config.id}_${scheduleDate}_${config.start_time}`;
+    this.sentRemindersCache.add(cacheKey);
+    this.sentCooldownMap.set(cacheKey, Date.now());
+
+    return {
+      success: true,
+      destination,
+      messageId: sendRes.messageId,
+      renderedMessage: rendered,
+      message: `Pre-session reminder for "${config.session_name}" (${this.format12h(config.start_time)}) sent to ${destination}`,
+    };
+  }
+
+  /**
    * Retrieves reminder delivery history from database.
    */
   async getReminderHistory(limit = 50): Promise<SessionReminderRecord[]> {
@@ -376,23 +468,19 @@ export class SessionReminderService {
         return;
       }
 
-      // Check bot mode: In STOPPED mode, scheduled pre-session reminders are paused
-      const { botModeManager } = await import('./botModeManager.js');
-      const currentMode = botModeManager.getMode();
-      if (currentMode === 'STOPPED') {
-        return;
-      }
-
+      // Evaluate scheduled pre-session reminders as long as reminders are enabled by admin in settings
       const tz = settings.timezone || this.defaultTimezone;
       const nowTz = DateTime.now().setZone(tz);
       const todayDateStr = nowTz.toFormat('yyyy-MM-dd');
       const tomorrowDateStr = nowTz.plus({ days: 1 }).toFormat('yyyy-MM-dd');
 
-      // Fetch all enabled session configs ordered by start_time
+      // Fetch all session configs and filter for enabled sessions safely in JS
       const configsRes = await query<any>(
-        'SELECT * FROM session_configs WHERE enabled = TRUE ORDER BY start_time ASC'
+        'SELECT * FROM session_configs ORDER BY start_time ASC'
       );
-      const configs = configsRes.rows;
+      const configs = (configsRes.rows || []).filter(
+        (c) => c.enabled === true || c.enabled === 'true' || c.enabled === 1 || c.enabled === '1' || c.enabled === undefined
+      );
       if (configs.length === 0) return;
 
       const destination = await getActiveWhatsAppDestination();
