@@ -39,18 +39,18 @@ describe('Session History, Signal Count & Data Integrity Tests', () => {
     // LOSS = 2
     // Win Rate = 77.78%
     expect(rendered).toContain('Total Predictions: 9');
-    expect(rendered).toContain('✅ WIN: 7');
-    expect(rendered).toContain('❌ LOSS: 2');
+    expect(rendered).toContain('Wins: 7');
+    expect(rendered).toContain('Losses: 2');
     expect(rendered).toContain('77.78%');
     expect(rendered).not.toContain('Total Predictions: 10');
-    expect(rendered).not.toContain('WIN: 10');
-    expect(rendered).not.toContain('LOSS: 10');
+    expect(rendered).not.toContain('Wins: 10');
+    expect(rendered).not.toContain('Losses: 10');
     expect(rendered).not.toContain('50.00%');
 
-    // Detail rows count must match summary total (1. Period to 9. Period)
-    expect(rendered).toContain('1. Period: 20260925100010001');
-    expect(rendered).toContain('9. Period: 20260925100010009');
-    expect(rendered).not.toContain('10. Period:');
+    // Detail rows count must match summary total (1️⃣ Period to 9️⃣ Period)
+    expect(rendered).toContain('1️⃣ Period: 20260925100010001');
+    expect(rendered).toContain('9️⃣ Period: 20260925100010009');
+    expect(rendered).not.toContain('🔟 Period:');
   });
 
   it('guarantees one period = one record by enforcing uniqueness in signals table', async () => {

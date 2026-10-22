@@ -52,8 +52,8 @@ describe('Session-Aware Architecture & Scheduling Tests', () => {
       endTime: '06:08:15',
     });
 
-    expect(msg).toContain('TARGET COMPLETED');
-    expect(msg).toContain('5 WIN');
+    expect(msg).toContain('𝗧𝗔𝗥𝗚𝗘𝗧 𝗖𝗢𝗠𝗣𝗟𝗘𝗧𝗘𝗗');
+    expect(msg).toContain('5 WINS');
     expect(msg).toContain('Wins: 5');
     expect(msg).toContain('Losses: 2');
     expect(msg).toContain('71.4%');
@@ -93,7 +93,7 @@ describe('Session-Aware Architecture & Scheduling Tests', () => {
       ],
     });
 
-    expect(msg).toContain('SESSION HISTORY');
+    expect(msg).toContain('𝗦𝗘𝗦𝗦𝗜𝗢𝗡 𝗛𝗜𝗦𝗧𝗢𝗥𝗬');
     expect(msg).toContain('Afternoon Session');
     expect(msg).toContain('83.3%');
     expect(msg).toContain('202609230001');

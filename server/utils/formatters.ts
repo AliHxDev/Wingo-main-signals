@@ -381,18 +381,63 @@ export async function renderDynamicSessionHistory(params: {
     );
   }
 
+function getNumberEmoji(num: number): string {
+  if (num === 10) return '🔟';
+  const digitMap: Record<string, string> = {
+    '0': '0️⃣',
+    '1': '1️⃣',
+    '2': '2️⃣',
+    '3': '3️⃣',
+    '4': '4️⃣',
+    '5': '5️⃣',
+    '6': '6️⃣',
+    '7': '7️⃣',
+    '8': '8️⃣',
+    '9': '9️⃣',
+  };
+  return String(num)
+    .split('')
+    .map((d) => digitMap[d] || d)
+    .join('');
+}
+
   // 4. Format detail list using the EXACT same settled records
   const signalItems = settled
     .map((s, idx) => {
-      const emoji = s.status === 'WIN' ? '✅' : '❌';
-      const sigColor = s.predicted_color ? ` ${s.predicted_color}` : '';
-      const resultParts = [s.actual_number, s.actual_size, s.actual_color]
-        .filter((v) => v !== null && v !== undefined && v !== '')
-        .join(' ');
-      const resultStr = resultParts || s.status;
-      return `${idx + 1}. Period: ${s.issue_number}\n   Signal: ${s.prediction}${sigColor}\n   Result: ${resultStr}\n   ${emoji} ${s.status}`;
+      const numEmoji = getNumberEmoji(idx + 1);
+      const statusEmoji = s.status === 'WIN' ? '✅' : '❌';
+
+      let signalText = (s.prediction || '').trim();
+      if (s.predicted_color && !signalText.toUpperCase().includes(s.predicted_color.toUpperCase())) {
+        signalText = `${signalText} ${s.predicted_color.toUpperCase()}`.trim();
+      }
+
+      let resultDesc = '';
+      if (s.actual_number !== null && s.actual_number !== undefined) {
+        const parts: string[] = [];
+        if (s.actual_size) {
+          parts.push(s.actual_size.toUpperCase());
+        }
+        if (s.actual_color) {
+          const formattedColor = s.actual_color
+            .toUpperCase()
+            .replace(/[+,]/g, ' + ')
+            .replace(/\s+/g, ' ')
+            .trim();
+          parts.push(formattedColor);
+        }
+        const details = parts.join(' ');
+        resultDesc = details ? `${s.actual_number} • ${details}` : `${s.actual_number}`;
+      } else {
+        const fallbackParts = [s.actual_size, s.actual_color]
+          .filter(Boolean)
+          .join(' ');
+        resultDesc = fallbackParts || s.status;
+      }
+
+      return `${numEmoji} Period: ${s.issue_number}\n🎯 Signal: ${signalText}\n📊 Result: ${resultDesc}\n${statusEmoji} ${s.status}`;
     })
-    .join('\n\n');
+    .join('\n');
 
   const winRateStr = String(winRate);
 

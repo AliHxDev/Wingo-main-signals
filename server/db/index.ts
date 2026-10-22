@@ -538,40 +538,44 @@ Our Signal: {predictionSize} {predictionColor} ❌`,
     {
       key: 'TARGET_COMPLETE',
       name: 'Session Target Completed',
-      template: `🎯 SESSION TARGET COMPLETED
-━━━━━━━━━━━━━━━━
-🏆 Target: {targetWins} WIN
+      template: `🏆 𝗦𝗘𝗦𝗦𝗜𝗢𝗡 𝗧𝗔𝗥𝗚𝗘𝗧 𝗖𝗢𝗠𝗣𝗟𝗘𝗧𝗘𝗗 🏆
+━━━━━━━━━━━━━━━━━━
+🎯 𝗦𝗘𝗦𝗦𝗜𝗢𝗡 𝗦𝗨𝗠𝗠𝗔𝗥𝗬
+🏆 Target: {targetWins} WINS
 ✅ Wins: {wins}
 ❌ Losses: {losses}
 📊 Total Signals: {totalSignals}
 📈 Win Rate: {winRate}%
-⏰ Session: {sessionName}
-🕐 Started: {startTime}
-🕐 Completed: {endTime}
-━━━━━━━━━━━━━━━━
-🎉 Today's session target has been completed successfully.`,
+━━━━━━━━━━━━━━━━━━
+🌙 Session: {sessionName}
+🕘 Started: {startTime}
+🕤 Completed: {endTime}
+━━━━━━━━━━━━━━━━━━
+🎉 𝗧𝗢𝗗𝗔𝗬'𝗦 𝗦𝗘𝗦𝗦𝗜𝗢𝗡 𝗜𝗦 𝗢𝗩𝗘𝗥!
+✅ Session target marked as completed.
+👑 Thank you for being part of our VIP community!
+⚠️ Results are variable. Play responsibly and never chase losses.`,
     },
     {
       key: 'SESSION_HISTORY',
       name: 'Session History Summary',
-      template: `📋 SESSION HISTORY
-━━━━━━━━━━━━━━━━
-⏰ Session: {sessionName}
-🕐 Time: {startTime} → {endTime}
-
-Total Predictions: {totalSignals}
-
-✅ WIN: {wins}
-❌ LOSS: {losses}
-
+      template: `📋 𝗪𝗜𝗡𝗚𝗢 𝗩𝗜𝗣 • 𝗦𝗘𝗦𝗦𝗜𝗢𝗡 𝗛𝗜𝗦𝗧𝗢𝗥𝗬
+━━━━━━━━━━━━━━━━━━
+🌙 𝗦𝗘𝗦𝗦𝗜𝗢𝗡: {sessionName}
+🕒 {startTime} → {endTime}
+📊 𝗦𝗘𝗦𝗦𝗜𝗢𝗡 𝗦𝗧𝗔𝗧𝗦
+🎯 Total Predictions: {totalSignals}
+✅ Wins: {wins}
+❌ Losses: {losses}
 📈 Win Rate: {winRate}%
-
-━━━━━━━━━━━━━━━━
-🏆 Target: {targetWins} WIN
-🎯 Status: {status}
-━━━━━━━━━━━━━━━━
-
-{signalsList}`,
+━━━━━━━━━━━━━━━━━━
+🏆 𝗧𝗔𝗥𝗚𝗘𝗧: {targetWins} WINS
+📌 𝗦𝗧𝗔𝗧𝗨𝗦: {status}
+━━━━━━━━━━━━━━━━━━
+📑 𝗗𝗘𝗧𝗔𝗜𝗟𝗘𝗗 𝗥𝗘𝗦𝗨𝗟𝗧𝗦
+{signalsList}
+━━━━━━━━━━━━━━━━━━
+⚠️ WinGo results are uncertain. Play responsibly and never chase losses.`,
     },
     {
       key: 'REMINDER',
@@ -599,7 +603,8 @@ Please prepare your funds and be ready.
     await target.query(
       `INSERT INTO message_templates (key, name, template, enabled)
        VALUES ($1, $2, $3, TRUE)
-       ON CONFLICT (key) DO NOTHING;`,
+       ON CONFLICT (key) DO UPDATE
+       SET template = EXCLUDED.template, name = EXCLUDED.name;`,
       [t.key, t.name, t.template]
     );
   }

@@ -50,38 +50,43 @@ Our Signal: {predictionSize} {predictionColor} ❌`,
   },
   TARGET_COMPLETE: {
     name: 'Session Target Completed',
-    template: `🎯 TARGET COMPLETED!
-━━━━━━━━━━━━━━━━
-🏆 Target: {targetWins} WIN
+    template: `🏆 𝗦𝗘𝗦𝗦𝗜𝗢𝗡 𝗧𝗔𝗥𝗚𝗘𝗧 𝗖𝗢𝗠𝗣𝗟𝗘𝗧𝗘𝗗 🏆
+━━━━━━━━━━━━━━━━━━
+🎯 𝗦𝗘𝗦𝗦𝗜𝗢𝗡 𝗦𝗨𝗠𝗠𝗔𝗥𝗬
+🏆 Target: {targetWins} WINS
 ✅ Wins: {wins}
 ❌ Losses: {losses}
-
-📊 The session target has been successfully completed.
-
-⏳ Session history will be sent shortly.
-
-━━━━━━━━━━━━━━━━`,
+📊 Total Signals: {totalSignals}
+📈 Win Rate: {winRate}%
+━━━━━━━━━━━━━━━━━━
+🌙 Session: {sessionName}
+🕘 Started: {startTime}
+🕤 Completed: {endTime}
+━━━━━━━━━━━━━━━━━━
+🎉 𝗧𝗢𝗗𝗔𝗬'𝗦 𝗦𝗘𝗦𝗦𝗜𝗢𝗡 𝗜𝗦 𝗢𝗩𝗘𝗥!
+✅ Session target marked as completed.
+👑 Thank you for being part of our VIP community!
+⚠️ Results are variable. Play responsibly and never chase losses.`,
   },
   SESSION_HISTORY: {
     name: 'Session History Summary',
-    template: `📋 SESSION HISTORY
-━━━━━━━━━━━━━━━━
-⏰ Session: {sessionName}
-🕐 Time: {startTime} → {endTime}
-
-Total Predictions: {totalSignals}
-
-✅ WIN: {wins}
-❌ LOSS: {losses}
-
+    template: `📋 𝗪𝗜𝗡𝗚𝗢 𝗩𝗜𝗣 • 𝗦𝗘𝗦𝗦𝗜𝗢𝗡 𝗛𝗜𝗦𝗧𝗢𝗥𝗬
+━━━━━━━━━━━━━━━━━━
+🌙 𝗦𝗘𝗦𝗦𝗜𝗢𝗡: {sessionName}
+🕒 {startTime} → {endTime}
+📊 𝗦𝗘𝗦𝗦𝗜𝗢𝗡 𝗦𝗧𝗔𝗧𝗦
+🎯 Total Predictions: {totalSignals}
+✅ Wins: {wins}
+❌ Losses: {losses}
 📈 Win Rate: {winRate}%
-
-━━━━━━━━━━━━━━━━
-🏆 Target: {targetWins} WIN
-🎯 Status: {status}
-━━━━━━━━━━━━━━━━
-
-{signalsList}`,
+━━━━━━━━━━━━━━━━━━
+🏆 𝗧𝗔𝗥𝗚𝗘𝗧: {targetWins} WINS
+📌 𝗦𝗧𝗔𝗧𝗨𝗦: {status}
+━━━━━━━━━━━━━━━━━━
+📑 𝗗𝗘𝗧𝗔𝗜𝗟𝗘𝗗 𝗥𝗘𝗦𝗨𝗟𝗧𝗦
+{signalsList}
+━━━━━━━━━━━━━━━━━━
+⚠️ WinGo results are uncertain. Play responsibly and never chase losses.`,
   },
   REMINDER: {
     name: 'Pre-Session Reminder',
@@ -408,20 +413,18 @@ export class TemplateService {
         : DEFAULT_TEMPLATES[upperKey]?.template || '';
 
     const now = new Date();
-    const sampleSignalsList = `1. Period: 20260923001
-   Signal: BIG GREEN
-   Result: 7 BIG GREEN
-   ✅ WIN
-
-2. Period: 20260923002
-   Signal: SMALL RED
-   Result: 2 SMALL RED
-   ✅ WIN
-
-3. Period: 20260923003
-   Signal: BIG RED
-   Result: 3 SMALL GREEN
-   ❌ LOSS`;
+    const sampleSignalsList = `1️⃣ Period: 20261022100010961
+🎯 Signal: BIG RED
+📊 Result: 0 • SMALL RED + VIOLET
+❌ LOSS
+2️⃣ Period: 20261022100010962
+🎯 Signal: SMALL GREEN
+📊 Result: 8 • BIG RED
+❌ LOSS
+3️⃣ Period: 20261022100010965
+🎯 Signal: BIG GREEN
+📊 Result: 7 • BIG GREEN
+✅ WIN`;
 
     const sampleVariables: TemplateVariables = {
       issueNumber: '202609231234',
