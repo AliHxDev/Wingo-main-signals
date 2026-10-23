@@ -6,7 +6,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { config } from './server/config/index.js';
 import { logger } from './server/services/logger.js';
-import { initDatabase } from './server/db/index.js';
+import { initDatabase, closeDatabase } from './server/db/index.js';
 import { apiRateLimiter } from './server/middleware/rate-limiter.js';
 import { errorHandler } from './server/middleware/error.js';
 
@@ -121,9 +121,12 @@ async function startServer() {
     logger.info(`Server is running at http://0.0.0.0:${PORT} in ${config.NODE_ENV} mode`);
   });
 
-  // Graceful shutdown handling
-  const shutdown = () => {
+  // Graceful shutdown handling with database flush
+  const shutdown = async () => {
     logger.info('Shutting down server gracefully...');
+    try {
+      await closeDatabase();
+    } catch {}
     server.close(() => {
       logger.info('HTTP server closed.');
       process.exit(0);
@@ -132,6 +135,15 @@ async function startServer() {
 
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
+
+  // 24/7 Crash Prevention Handlers
+  process.on('uncaughtException', (err: any) => {
+    logger.error({ err: err?.message, stack: err?.stack }, 'Uncaught Exception captured safely (preventing crash)');
+  });
+
+  process.on('unhandledRejection', (reason: any) => {
+    logger.error({ reason: reason?.message || String(reason) }, 'Unhandled Rejection captured safely (preventing crash)');
+  });
 
   return { app, server };
 }

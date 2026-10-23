@@ -303,6 +303,12 @@ export async function initDatabase(): Promise<void> {
   await getDatabase();
 }
 
+export async function closeDatabase(): Promise<void> {
+  if (dbAdapter) {
+    await dbAdapter.close();
+  }
+}
+
 async function initSchemaAndSeed(targetAdapter?: DatabaseAdapter): Promise<void> {
   const target = targetAdapter || dbAdapter;
   if (!target) return;

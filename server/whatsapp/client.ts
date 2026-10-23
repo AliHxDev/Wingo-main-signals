@@ -403,13 +403,14 @@ export class WhatsAppManager {
         return;
       }
 
-      // Exponential reconnect backoff (Requirement 9): 1s, 2s, 4s, 8s, 16s, 30s max
-      if (!this.isShuttingDown && this.reconnectAttempts < this.maxReconnectAttempts) {
+      // Continuous 24/7 reconnect backoff: 1s, 2s, 4s, 8s, 16s, 30s max for initial attempts,
+      // and continuous 30s retry intervals to ensure 24/7 self-healing uptime
+      if (!this.isShuttingDown) {
         this.reconnectAttempts++;
         const backoffMs = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000);
         logger.info(
-          { attempt: this.reconnectAttempts, max: this.maxReconnectAttempts, backoffMs },
-          'Scheduling WhatsApp reconnect with exponential backoff...'
+          { attempt: this.reconnectAttempts, backoffMs },
+          'Scheduling WhatsApp 24/7 reconnect attempt...'
         );
 
         if (this.reconnectTimer) {
@@ -422,10 +423,6 @@ export class WhatsAppManager {
             logger.error({ err: err.message }, 'Failed during automatic reconnect attempt');
           });
         }, backoffMs);
-      } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        this.status = 'disconnected';
-        this.lastError = `Reconnection attempts (${this.maxReconnectAttempts}) reached limit. Manual reconnect available.`;
-        await this.persistState();
       }
     }
   }
