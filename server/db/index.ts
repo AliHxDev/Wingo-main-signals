@@ -14,6 +14,7 @@ const DB_FILE = path.join(DATA_DIR, 'wingo_database.json');
 const PERSISTED_TABLES = [
   'users',
   'settings',
+  'whatsapp_auth',
   'whatsapp_connection',
   'session_configs',
   'bot_sessions',
@@ -29,6 +30,8 @@ const PERSISTED_TABLES = [
 let saveTimeout: NodeJS.Timeout | null = null;
 
 export async function flushLocalDatabase(target: DatabaseAdapter): Promise<void> {
+  const isTest = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || config.NODE_ENV === 'test';
+  if (isTest) return;
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -49,6 +52,8 @@ export async function flushLocalDatabase(target: DatabaseAdapter): Promise<void>
 }
 
 export function scheduleLocalDatabaseSave(target: DatabaseAdapter): void {
+  const isTest = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || config.NODE_ENV === 'test';
+  if (isTest) return;
   if (saveTimeout) clearTimeout(saveTimeout);
   saveTimeout = setTimeout(() => {
     flushLocalDatabase(target).catch(() => {});
@@ -56,6 +61,8 @@ export function scheduleLocalDatabaseSave(target: DatabaseAdapter): void {
 }
 
 export async function restoreLocalDatabase(target: DatabaseAdapter): Promise<void> {
+  const isTest = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || config.NODE_ENV === 'test';
+  if (isTest) return;
   try {
     if (!fs.existsSync(DB_FILE)) return;
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
@@ -80,13 +87,47 @@ export async function restoreLocalDatabase(target: DatabaseAdapter): Promise<voi
             );
           } else if (table === 'whatsapp_connection') {
             await target.query(
-              `INSERT INTO whatsapp_connection (id, status, phone_number, pairing_code, last_error) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, phone_number = EXCLUDED.phone_number;`,
-              [row.id, row.status, row.phone_number, row.pairing_code, row.last_error]
+              `INSERT INTO whatsapp_connection (id, status, phone_number, pairing_code, last_error, connected_at)
+               VALUES ($1, $2, $3, $4, $5, $6)
+               ON CONFLICT (id) DO UPDATE SET
+                 status = EXCLUDED.status,
+                 phone_number = EXCLUDED.phone_number,
+                 pairing_code = EXCLUDED.pairing_code,
+                 last_error = EXCLUDED.last_error,
+                 connected_at = EXCLUDED.connected_at;`,
+              [row.id, row.status, row.phone_number, row.pairing_code, row.last_error, row.connected_at]
+            );
+          } else if (table === 'whatsapp_auth') {
+            const dataVal = typeof row.data === 'string' ? row.data : JSON.stringify(row.data);
+            await target.query(
+              `INSERT INTO whatsapp_auth (id, data, updated_at) VALUES ($1, $2::jsonb, NOW())
+               ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW();`,
+              [row.id, dataVal]
+            );
+          } else if (table === 'message_templates') {
+            await target.query(
+              `INSERT INTO message_templates (key, name, template, enabled)
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT (key) DO UPDATE SET
+                 name = EXCLUDED.name,
+                 template = EXCLUDED.template,
+                 enabled = EXCLUDED.enabled;`,
+              [row.key, row.name, row.template, row.enabled ?? true]
             );
           } else if (table === 'session_configs') {
             await target.query(
-              `INSERT INTO session_configs (id, session_name, start_time, end_time, enabled, target_wins, min_confidence, signal_delay_min, signal_delay_max) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (id) DO UPDATE SET session_name = EXCLUDED.session_name, start_time = EXCLUDED.start_time, end_time = EXCLUDED.end_time;`,
-              [row.id, row.session_name, row.start_time, row.end_time, row.enabled, row.target_wins, row.min_confidence, row.signal_delay_min, row.signal_delay_max]
+              `INSERT INTO session_configs (id, session_name, start_time, end_time, enabled, target_wins, min_confidence, signal_delay_min, signal_delay_max)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+               ON CONFLICT (id) DO UPDATE SET
+                 session_name = EXCLUDED.session_name,
+                 start_time = EXCLUDED.start_time,
+                 end_time = EXCLUDED.end_time,
+                 enabled = EXCLUDED.enabled,
+                 target_wins = EXCLUDED.target_wins,
+                 min_confidence = EXCLUDED.min_confidence,
+                 signal_delay_min = EXCLUDED.signal_delay_min,
+                 signal_delay_max = EXCLUDED.signal_delay_max;`,
+              [row.id, row.session_name, row.start_time, row.end_time, row.enabled ?? true, row.target_wins ?? 10, row.min_confidence ?? 65, row.signal_delay_min ?? 15, row.signal_delay_max ?? 15]
             );
           } else {
             const keys = Object.keys(row);
@@ -107,6 +148,9 @@ export async function restoreLocalDatabase(target: DatabaseAdapter): Promise<voi
         } catch {}
       }
     }
+    if (activeMemDb) {
+      syncPgMemSequences(activeMemDb);
+    }
     logger.info('Local persistent database successfully restored.');
   } catch (err: any) {
     logger.warn({ err: err.message }, 'Failed to restore local database from file');
@@ -126,6 +170,40 @@ export interface DatabaseAdapter {
 
 let dbAdapter: DatabaseAdapter | null = null;
 let dbInitPromise: Promise<DatabaseAdapter> | null = null;
+let activeMemDb: any = null;
+
+function syncPgMemSequences(memDb: any): void {
+  try {
+    const t = memDb?.public?.db?.data;
+    if (!t) return;
+    const tables = [
+      'session_configs',
+      'bot_sessions',
+      'signals',
+      'session_reminders',
+      'scheduled_reminders',
+      'delivery_logs',
+      'system_logs',
+      'users',
+    ];
+    for (const tableName of tables) {
+      try {
+        const tbl = memDb.public.getTable(tableName);
+        if (tbl && tbl.serialsId) {
+          let maxId = 0;
+          for (const item of tbl.enumerate(t)) {
+            if (typeof item.id === 'number' && item.id > maxId) {
+              maxId = item.id;
+            }
+          }
+          if (maxId > 0) {
+            t.set(tbl.serialsId, t.getMap(tbl.serialsId).set('id', maxId));
+          }
+        }
+      } catch {}
+    }
+  } catch {}
+}
 
 export async function getDatabase(): Promise<DatabaseAdapter> {
   if (dbAdapter) {
@@ -253,6 +331,7 @@ export async function getDatabase(): Promise<DatabaseAdapter> {
         'Using Oracle Native Persistent Database Engine (stored locally in ./data/wingo_database.json).'
       );
       const memDb = newDb();
+      activeMemDb = memDb;
 
       memDb.public.registerFunction({
         name: 'now',
@@ -498,6 +577,11 @@ async function initSchemaAndSeed(targetAdapter?: DatabaseAdapter): Promise<void>
     // Already exists or unsupported
   }
 
+  // Restore any persisted data from disk FIRST (before seeding defaults)
+  if (target && !target.isRealPostgres) {
+    await restoreLocalDatabase(target);
+  }
+
   // Seed default templates
   const defaultTemplates = [
     {
@@ -609,8 +693,7 @@ Please prepare your funds and be ready.
     await target.query(
       `INSERT INTO message_templates (key, name, template, enabled)
        VALUES ($1, $2, $3, TRUE)
-       ON CONFLICT (key) DO UPDATE
-       SET template = EXCLUDED.template, name = EXCLUDED.name;`,
+       ON CONFLICT (key) DO NOTHING;`,
       [t.key, t.name, t.template]
     );
   }
@@ -706,9 +789,8 @@ Please prepare your funds and be ready.
     logger.info('Default session schedules (Morning 06:00, Afternoon 14:00, Night 20:00) initialized.');
   }
 
-  // Restore any persisted data from disk if running on local engine
+  // Save current database state to disk if running on local engine
   if (target && !target.isRealPostgres) {
-    await restoreLocalDatabase(target);
     await flushLocalDatabase(target);
   }
 

@@ -1034,8 +1034,8 @@ export class SessionScheduler {
         return false;
       }
 
-      const destination = await getActiveWhatsAppDestination();
       const waCheck = await whatsAppManager.isReady();
+      const destination = (await getActiveWhatsAppDestination()) || waCheck.destination;
       const isConnected = waCheck.ready && whatsAppManager.getStatus().status === 'connected';
 
       if (!destination || !isConnected) {
@@ -1227,8 +1227,8 @@ export class SessionScheduler {
         return false;
       }
 
-      const destination = await getActiveWhatsAppDestination();
       const waCheck = await whatsAppManager.isReady();
+      const destination = (await getActiveWhatsAppDestination()) || waCheck.destination;
       const isConnected = waCheck.ready && whatsAppManager.getStatus().status === 'connected';
 
       if (!destination || !isConnected) {

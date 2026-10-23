@@ -98,7 +98,7 @@ async function restoreAuthFromDbIfNeeded(): Promise<void> {
 /**
  * Syncs auth files to PostgreSQL in the background without blocking pairing handshake.
  */
-async function syncAuthToDb(): Promise<void> {
+export async function syncAuthToDb(): Promise<void> {
   try {
     if (!fs.existsSync(AUTH_DIR)) return;
     const files = fs.readdirSync(AUTH_DIR);

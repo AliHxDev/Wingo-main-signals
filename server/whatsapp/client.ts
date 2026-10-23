@@ -288,6 +288,14 @@ export class WhatsAppManager {
       await this.persistState();
       console.log(`[WHATSAPP] Authoritative connection established: CONNECTED (${this.sock?.user?.id || 'Ready'})`);
 
+      // Immediately sync all Baileys auth keys into persistent DB table
+      try {
+        const { syncAuthToDb } = await import('../db/auth-store.js');
+        await syncAuthToDb();
+      } catch (err: any) {
+        logger.warn({ err: err.message }, 'Failed to sync auth files on connection open');
+      }
+
       // Trigger session scheduler tick on reconnection to resume eligible session (Requirement 4 & 6)
       try {
         const { sessionScheduler } = await import('../services/sessionScheduler.js');
