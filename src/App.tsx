@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Navbar } from './components/Navbar.js';
 import { LoginModal } from './components/LoginModal.js';
+import { LoginPage } from './pages/LoginPage.js';
 import { DashboardPage } from './pages/DashboardPage.js';
 import { WhatsAppPage } from './pages/WhatsAppPage.js';
 import { SignalsPage } from './pages/SignalsPage.js';
@@ -17,11 +18,12 @@ import type {
   AppSettings,
   User,
 } from './types/index.js';
-import { AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, X, Bot, Loader2 } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   // Core Data States
@@ -44,26 +46,38 @@ export const App: React.FC = () => {
     }, 5000);
   }, []);
 
-  // Fetch initial authentication status with fallback auto-login
+  // Fetch initial authentication status strictly without automatic login
   useEffect(() => {
+    let isMounted = true;
     api
       .getAuthStatus()
-      .then(async (res) => {
+      .then((res) => {
+        if (!isMounted) return;
         if (res.authenticated && res.user) {
           setCurrentUser(res.user);
         } else {
-          try {
-            const autoRes = await api.autoLogin();
-            if (autoRes?.user) {
-              setCurrentUser(autoRes.user);
-            }
-          } catch {
-            // Admin password might have been customized, ignore silent failure
-          }
+          setCurrentUser(null);
         }
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => {
+        if (isMounted) setCurrentUser(null);
+      })
+      .finally(() => {
+        if (isMounted) setIsCheckingAuth(false);
+      });
+
+    // Listen for unauthorized events across the app to return to login screen
+    const handleUnauthorized = () => {
+      setCurrentUser(null);
+      showNotification('Session locked or expired. Please sign in.', true);
+    };
+
+    window.addEventListener('wingo_unauthorized', handleUnauthorized);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('wingo_unauthorized', handleUnauthorized);
+    };
+  }, [showNotification]);
 
   // Polling Function to sync real-time bot and WhatsApp state
   const refreshAllData = useCallback(async (includeFull = false) => {
@@ -97,9 +111,11 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Initial load and periodic polling
+  // Initial load and periodic polling when authenticated
   useEffect(() => {
-    // Initial full fetch
+    if (!currentUser) return;
+
+    // Initial full fetch upon login
     refreshAllData(true);
 
     // Heartbeat poll for core status badges every 5 seconds
@@ -116,18 +132,81 @@ export const App: React.FC = () => {
       clearInterval(heartbeatInterval);
       clearInterval(telemetryInterval);
     };
-  }, [refreshAllData]);
+  }, [currentUser, refreshAllData]);
 
   const handleLogout = async () => {
     try {
       await api.logout();
+      api.setToken(null);
       setCurrentUser(null);
-      showNotification('Logged out successfully.');
+      showNotification('Logged out successfully. Terminal locked.');
     } catch {
+      api.setToken(null);
       setCurrentUser(null);
     }
   };
 
+  // 1. Initial Verification Screen
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center text-white px-4 select-none">
+        <div className="relative mb-5">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center shadow-2xl shadow-emerald-950/80 ring-1 ring-emerald-400/40 animate-pulse">
+            <Bot className="w-8 h-8 text-white" />
+          </div>
+          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center border-2 border-neutral-950">
+            <Loader2 className="w-3 h-3 text-neutral-950 animate-spin" />
+          </div>
+        </div>
+        <div className="text-center">
+          <h2 className="text-base font-bold text-white tracking-tight">WinGo 1M VIP Engine</h2>
+          <p className="text-xs text-neutral-400 mt-1 font-mono">Verifying Session Security Clearance...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Unauthenticated Gate: Show Professional Login Page First
+  if (!currentUser) {
+    return (
+      <>
+        {notification && (
+          <div className="fixed top-5 right-5 z-50 max-w-md animate-in fade-in slide-in-from-top-5 duration-200">
+            <div
+              className={`p-4 rounded-2xl border shadow-2xl flex items-start gap-3 ${
+                notification.isError
+                  ? 'bg-rose-950/90 border-rose-800 text-rose-200'
+                  : 'bg-emerald-950/90 border-emerald-800 text-emerald-200'
+              }`}
+            >
+              {notification.isError ? (
+                <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
+              ) : (
+                <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400" />
+              )}
+              <div className="flex-1 text-xs font-medium leading-relaxed">
+                {notification.message}
+              </div>
+              <button
+                onClick={() => setNotification(null)}
+                className="text-neutral-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+        <LoginPage
+          onLoginSuccess={(user) => {
+            setCurrentUser(user);
+            showNotification(`Access Granted: Welcome back, ${user.username}!`);
+          }}
+        />
+      </>
+    );
+  }
+
+  // 3. Authenticated: Full VIP Bot Dashboard
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans selection:bg-emerald-500/30 selection:text-emerald-300">
       {/* Top Navigation Bar */}
@@ -167,7 +246,7 @@ export const App: React.FC = () => {
             </div>
             <button
               onClick={() => setNotification(null)}
-              className="text-neutral-400 hover:text-white transition-colors"
+              className="text-neutral-400 hover:text-white transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -236,13 +315,13 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      {/* Admin Login Modal */}
+      {/* Admin Login Modal (for in-page re-authentication if token refreshed) */}
       <LoginModal
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
         onSuccess={(user) => {
           setCurrentUser(user);
-          showNotification(`Welcome back, ${user.username}!`);
+          showNotification(`Authenticated as ${user.username}!`);
           refreshAllData();
         }}
       />

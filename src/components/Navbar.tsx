@@ -167,20 +167,29 @@ export const Navbar: React.FC<NavbarProps> = ({
             />
 
             {currentUser ? (
-              <button
-                id="admin-logout-btn"
-                onClick={onLogout}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 transition-colors"
-                title={`Logged in as ${currentUser.username}`}
-              >
-                <LogOut className="w-3.5 h-3.5 text-neutral-400" />
-                <span className="hidden sm:inline">Logout</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-900 border border-neutral-800 text-xs">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="font-semibold text-neutral-200">{currentUser.username}</span>
+                  <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    VIP Admin
+                  </span>
+                </div>
+                <button
+                  id="admin-logout-btn"
+                  onClick={onLogout}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 transition-colors cursor-pointer"
+                  title={`Sign out of ${currentUser.username}`}
+                >
+                  <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
             ) : (
               <button
                 id="admin-login-btn"
                 onClick={onOpenLogin}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 transition-colors cursor-pointer"
               >
                 <LogIn className="w-3.5 h-3.5" />
                 <span>Admin Login</span>

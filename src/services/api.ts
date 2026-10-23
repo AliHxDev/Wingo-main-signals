@@ -90,21 +90,16 @@ class ApiService {
       credentials: 'include', // Include HTTP-only cookie if available
     });
 
-    // If unauthorized and retry is permitted, attempt silent auto-login and retry once
+    // If unauthorized, clear token and notify application to display login page
     if (
       res.status === 401 &&
-      retryOn401 &&
       endpoint !== '/api/auth/login' &&
-      endpoint !== '/api/auth/auto-login' &&
+      endpoint !== '/api/auth/status' &&
       endpoint !== '/api/auth/logout'
     ) {
-      try {
-        const autoRes = await this.autoLogin();
-        if (autoRes?.token) {
-          return this.request<T>(endpoint, options, false);
-        }
-      } catch {
-        // Auto-login failed, continue to standard error throw
+      this.setToken(null);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('wingo_unauthorized'));
       }
     }
 
