@@ -4,13 +4,10 @@ import {
   User,
   AlertCircle,
   Loader2,
-  Eye,
-  EyeOff,
   ShieldCheck,
   Bot,
   Radio,
   Clock,
-  Sparkles,
   KeyRound,
 } from 'lucide-react';
 import { api } from '../services/api.js';
@@ -21,9 +18,8 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState('admin');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -73,12 +69,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleAutofill = () => {
-    setUsername('admin');
-    setPassword('admin123456');
-    setError(null);
   };
 
   return (
@@ -163,55 +153,36 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     required
                     autoComplete="username"
                     className="w-full pl-10 pr-4 py-2.5 bg-neutral-950 border border-neutral-800 rounded-xl text-white text-sm placeholder:text-neutral-600 focus:outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-medium"
-                    placeholder="admin"
+                    placeholder="Enter your username"
                   />
                 </div>
               </div>
 
               {/* Password Field */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label
-                    htmlFor="login-password"
-                    className="block text-[11px] font-semibold uppercase tracking-wider text-neutral-400"
-                  >
-                    Security Password
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="text-[11px] text-neutral-400 hover:text-neutral-200 flex items-center gap-1 transition-colors"
-                  >
-                    {showPassword ? (
-                      <>
-                        <EyeOff className="w-3 h-3" />
-                        <span>Hide</span>
-                      </>
-                    ) : (
-                      <>
-                        <Eye className="w-3 h-3" />
-                        <span>Show</span>
-                      </>
-                    )}
-                  </button>
-                </div>
+                <label
+                  htmlFor="login-password"
+                  className="block text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-1.5"
+                >
+                  Security Password
+                </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     id="login-password"
-                    type={showPassword ? 'text' : 'password'}
+                    type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     autoComplete="current-password"
                     className="w-full pl-10 pr-10 py-2.5 bg-neutral-950 border border-neutral-800 rounded-xl text-white text-sm placeholder:text-neutral-600 focus:outline-hidden focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono"
-                    placeholder="••••••••••••"
+                    placeholder="Enter your password"
                   />
                   <KeyRound className="w-4 h-4 text-neutral-600 absolute right-3.5 top-1/2 -translate-y-1/2" />
                 </div>
               </div>
 
-              {/* Remember Me & Autofill Row */}
+              {/* Remember Me Row */}
               <div className="flex items-center justify-between pt-1 text-xs">
                 <label className="flex items-center gap-2 cursor-pointer text-neutral-400 hover:text-neutral-300">
                   <input
@@ -222,15 +193,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   />
                   <span>Remember this browser</span>
                 </label>
-
-                <button
-                  type="button"
-                  onClick={handleAutofill}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
-                >
-                  <Sparkles className="w-3 h-3" />
-                  <span>Autofill Defaults</span>
-                </button>
               </div>
 
               {/* Submit Button */}
@@ -254,10 +216,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               </button>
             </form>
 
-            {/* Helper Credential Info Box */}
+            {/* Bottom Security Info Box */}
             <div className="mt-6 pt-5 border-t border-neutral-800/80 flex items-center justify-between text-xs text-neutral-400">
               <span className="text-[11px] text-neutral-500">
-                Default Credentials: <code className="text-emerald-400 font-mono">admin</code> / <code className="text-emerald-400 font-mono">admin123456</code>
+                End-to-End Encrypted Session
               </span>
               <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-neutral-800/80 text-neutral-300">
                 SHA-256
@@ -269,7 +231,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           <div className="mt-4 px-2 flex items-center justify-between text-[11px] text-neutral-500">
             <div className="flex items-center gap-1.5">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-              <span>Session Encrypted & Protected</span>
+              <span>Session Protected</span>
             </div>
             <span>Auto-Logout on Token Expiry</span>
           </div>

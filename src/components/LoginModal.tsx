@@ -10,7 +10,7 @@ interface LoginModalProps {
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const [username, setUsername] = useState('admin');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -54,22 +54,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Quick Default Credentials Pill */}
-          <div className="p-3 bg-neutral-950/70 border border-neutral-800 rounded-xl flex items-center justify-between text-xs">
-            <span className="text-neutral-400">
-              Default: <code className="text-emerald-400 font-mono font-semibold">admin</code> / <code className="text-emerald-400 font-mono font-semibold">admin123456</code>
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setUsername('admin');
-                setPassword('admin123456');
-              }}
-              className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 underline underline-offset-2"
-            >
-              Autofill
-            </button>
-          </div>
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1.5">
